@@ -9,8 +9,14 @@ on:
       - 'frontend/**'
       - 'catalogue/**'
       - 'scripts/catalogue/**'
+      - 'scripts/android/**'
       - '.github/workflows/android.yml'
   workflow_dispatch:
+    inputs:
+      release_version_code:
+        description: 'Unsigned release version code (integer 28 through 2100000000)'
+        type: string
+        default: '28'
 
 permissions:
   contents: read
@@ -23,6 +29,8 @@ jobs:
   android:
     runs-on: ubuntu-24.04
     timeout-minutes: 30
+    env:
+      OPENGYM_VERSION_CODE: ${{ inputs.release_version_code || '28' }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
@@ -44,6 +52,8 @@ jobs:
           cache-provider: basic
           cache-read-only: ${{ github.event_name == 'pull_request' }}
           validate-wrappers: true
+      - name: Validate local release safeguards
+        run: python3 -m unittest discover -s scripts/android -p 'test_release_signing.py'
       - run: npm ci
         working-directory: frontend
       - name: Build and sync only the Android mobile bundle
@@ -58,21 +68,72 @@ jobs:
             if (errors.length) throw new Error(errors.join("\n"));
             console.log("Android mobile bundle verified");
           '
-      - name: Android unit tests and installable test APK
+      - name: Android unit tests, test APK, and unsigned release
         working-directory: frontend/android
-        run: ./gradlew --no-daemon testSideloadDebugUnitTest assembleSideloadDebug
+        run: ./gradlew --no-daemon "-PopengymVersionCode=$OPENGYM_VERSION_CODE" testSideloadDebugUnitTest assembleSideloadDebug assembleSideloadRelease
       - name: Verify and checksum the test APK
         working-directory: frontend/android/app/build/outputs/apk/sideload/debug
         run: |
           "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose app-sideload-debug.apk
           sha256sum app-sideload-debug.apk > app-sideload-debug.apk.sha256
-          printf 'Test APK only: debug-signed, application ID suffix `.test`. Production signing is not configured.\n' >> "$GITHUB_STEP_SUMMARY"
+          printf 'Test APK only: ephemeral signing keys, application ID `live.orbenda.opengym.test`; cannot update prior test installs.\n' >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: android-test-apk-${{ github.sha }}
           path: |
             frontend/android/app/build/outputs/apk/sideload/debug/app-sideload-debug.apk
             frontend/android/app/build/outputs/apk/sideload/debug/app-sideload-debug.apk.sha256
+          if-no-files-found: error
+          retention-days: 14
+      - name: Verify unsigned release and record tested source
+        working-directory: frontend/android/app/build/outputs/apk/sideload/release
+        env:
+          SOURCE_COMMIT: ${{ github.sha }}
+          REPOSITORY: ${{ github.repository }}
+          RUN_ID: ${{ github.run_id }}
+          EVENT_NAME: ${{ github.event_name }}
+          SOURCE_REF: ${{ github.ref }}
+          PR_HEAD_COMMIT: ${{ github.event.pull_request.head.sha }}
+        run: |
+          APK=app-sideload-release-unsigned.apk
+          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging "$APK" > release-badging.txt
+          if "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose "$APK"; then
+            echo 'Release unexpectedly has a signature; refusing to upload.' >&2
+            exit 1
+          fi
+          python3 - <<'PYTHON'
+          import hashlib, json, os, re, zipfile
+          from pathlib import Path
+          apk = Path('app-sideload-release-unsigned.apk')
+          with zipfile.ZipFile(apk) as archive:
+              assert archive.testzip() is None, 'Corrupt release APK'
+              assert not any(re.match(r'META-INF/.*\.(RSA|DSA|EC|SF)$', name, re.I) for name in archive.namelist()), 'Release contains JAR signatures'
+          badging = Path('release-badging.txt').read_text()
+          package = re.search(r"^package: name='([^']+)' versionCode='([^']+)' versionName='([^']+)'", badging, re.M)
+          expected = ('live.orbenda.opengym', os.environ['OPENGYM_VERSION_CODE'], '1.4.3')
+          assert package and package.groups() == expected, f'Unexpected package/version: {package}'
+          assert re.search(r"^sdkVersion:'24'$", badging, re.M), 'Unexpected min SDK'
+          assert re.search(r"^targetSdkVersion:'36'$", badging, re.M), 'Unexpected target SDK'
+          digest = hashlib.sha256(apk.read_bytes()).hexdigest()
+          Path(str(apk) + '.sha256').write_text(f'{digest}  {apk.name}\n')
+          provenance = dict(
+              schemaVersion=1, repository=os.environ['REPOSITORY'], runId=os.environ['RUN_ID'],
+              sourceCommit=os.environ['SOURCE_COMMIT'], applicationId=expected[0],
+              versionCode=int(expected[1]), versionName=expected[2], apkFile=apk.name, apkSha256=digest,
+              eventName=os.environ['EVENT_NAME'], ref=os.environ['SOURCE_REF'],
+              prHeadCommit=os.environ['PR_HEAD_COMMIT'] or None,
+              testedSourceType='pr-merge-commit' if os.environ['EVENT_NAME'] == 'pull_request' else 'branch-commit',
+              minSdk=24, targetSdk=36, signing='unsigned')
+          Path('release-provenance.json').write_text(json.dumps(provenance, indent=2) + '\n')
+          PYTHON
+          printf 'Unsigned production release verified: `live.orbenda.opengym`, version code `%s`. Requires permanent local signing before installation. Source: `%s` (%s, %s).\n' "$OPENGYM_VERSION_CODE" "$SOURCE_COMMIT" "$EVENT_NAME" "$SOURCE_REF" >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: android-unsigned-release-${{ github.sha }}
+          path: |
+            frontend/android/app/build/outputs/apk/sideload/release/app-sideload-release-unsigned.apk
+            frontend/android/app/build/outputs/apk/sideload/release/app-sideload-release-unsigned.apk.sha256
+            frontend/android/app/build/outputs/apk/sideload/release/release-provenance.json
           if-no-files-found: error
           retention-days: 14
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
