@@ -1,0 +1,8 @@
+# Add this site to the EXISTING Caddy configuration. Replace the example hostname.
+# Do not overwrite the existing Caddyfile or duplicate global options.
+gym.example.com {
+    reverse_proxy 127.0.0.1:8082 {
+        # Never forward a client's claimed IP. nginx forwards ONLY this overwritten value.
+        header_up CF-Connecting-IP {remote_host}
+    }
+}

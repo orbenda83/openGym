@@ -228,3 +228,25 @@ jobs:
           name: web-security-reports
           path: security-reports/
           retention-days: 30
+
+  hosting-pilot:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version: 22
+      - name: Build matching pilot images
+        run: |
+          docker build --target default --build-arg VCS_REF="$GITHUB_SHA" -t opengym-pilot-api:test ./api
+          docker build --build-arg VCS_REF="$GITHUB_SHA" -t opengym-pilot-web:test -f web/Dockerfile .
+      - name: Install checksum-pinned restic
+        run: |
+          curl --fail --location --silent --show-error -o /tmp/restic.bz2 https://github.com/restic/restic/releases/download/v0.19.1/restic_0.19.1_linux_amd64.bz2
+          echo 'f415415624dcc452f2a02b8c33641791a8c6d6d3b65bbb3543fcf9a25151585c  /tmp/restic.bz2' | sha256sum --check
+          bunzip2 /tmp/restic.bz2
+          sudo install -m 755 /tmp/restic /usr/local/bin/restic
+      - name: Validate the additive Caddy site
+        run: docker run --rm --network none -v "$PWD/deploy/pilot/Caddyfile.example:/etc/caddy/Caddyfile:ro" caddy@sha256:eb4d35b7452d1ab6171fbdbe8d9275b2301dad6dad92115d91e19fb9b24d510f caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile
+      - name: Test isolated bootstrap, runtime, encrypted backup and restore
+        run: bash scripts/hosting/test-pilot.sh
