@@ -1,0 +1,83 @@
+name: Android
+
+on:
+  # The android job protects main, so it must emit a result for every PR.
+  pull_request:
+  push:
+    branches: [main]
+    paths:
+      - 'frontend/**'
+      - 'catalogue/**'
+      - 'scripts/catalogue/**'
+      - '.github/workflows/android.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: android-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  android:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: android-actions/setup-android@be39fa834029ff78f1a44aa3bb0819b8fc2bd8fd # v4.0.4
+        with:
+          # Use the hosted runner's existing accepted SDK licences.
+          accept-android-sdk-licenses: false
+          packages: 'platform-tools platforms;android-36 build-tools;35.0.0'
+      - uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0
+        with:
+          cache-provider: basic
+          cache-read-only: ${{ github.event_name == 'pull_request' }}
+          validate-wrappers: true
+      - run: npm ci
+        working-directory: frontend
+      - name: Build and sync only the Android mobile bundle
+        working-directory: frontend
+        run: |
+          VITE_MOBILE=1 npm run build
+          node ../scripts/catalogue/stage-media.mjs dist
+          npx cap sync android
+          node --input-type=module -e '
+            import { checkCopy } from "./scripts/check-mobile-bundle.mjs";
+            const errors = ["dist", "android/app/src/main/assets/public"].flatMap(checkCopy);
+            if (errors.length) throw new Error(errors.join("\n"));
+            console.log("Android mobile bundle verified");
+          '
+      - name: Android unit tests and installable test APK
+        working-directory: frontend/android
+        run: ./gradlew --no-daemon testSideloadDebugUnitTest assembleSideloadDebug
+      - name: Verify and checksum the test APK
+        working-directory: frontend/android/app/build/outputs/apk/sideload/debug
+        run: |
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose app-sideload-debug.apk
+          sha256sum app-sideload-debug.apk > app-sideload-debug.apk.sha256
+          printf 'Test APK only: debug-signed, application ID suffix `.test`. Production signing is not configured.\n' >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: android-test-apk-${{ github.sha }}
+          path: |
+            frontend/android/app/build/outputs/apk/sideload/debug/app-sideload-debug.apk
+            frontend/android/app/build/outputs/apk/sideload/debug/app-sideload-debug.apk.sha256
+          if-no-files-found: error
+          retention-days: 14
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        if: always()
+        with:
+          name: android-unit-test-results-${{ github.sha }}
+          path: frontend/android/app/build/test-results/testSideloadDebugUnitTest/
+          retention-days: 14
