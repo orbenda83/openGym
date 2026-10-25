@@ -71,7 +71,10 @@ function copiedEntry(entry, source) {
   const target = entry?.target && typeof entry.target === 'object'
     ? structuredClone(entry.target)
     : {}
-  const cfg = { ...defaultConfig(entry?.id), ...target, id: entry?.id, sets: Math.max(1, setsFromRows({ ...defaultConfig(entry?.id), ...target }, work.length) || 1), warmupSets: rows.filter(isWarmupRow).length }
+  // Copy the saved mode, including the legacy fallback, rather than applying a new
+  // catalogue default to historical reps.
+  const defaults = defaultConfig(entry?.id, modeOf({ ...target, id: entry?.id }))
+  const cfg = { ...defaults, ...target, id: entry?.id, sets: Math.max(1, setsFromRows({ ...defaults, ...target }, work.length) || 1), warmupSets: rows.filter(isWarmupRow).length }
   const mode = modeOf(cfg)
   if (mode === 'time' && row) Object.assign(cfg, { sec: row.sec ?? cfg.sec, weight: row.w ?? cfg.weight ?? 0 })
   else if (mode === 'cardio' && row) Object.assign(cfg, { min: row.min ?? cfg.min, speed: row.speed ?? cfg.speed })

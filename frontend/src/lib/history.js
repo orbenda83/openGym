@@ -3,7 +3,7 @@ import { syncSupersetMeta } from './superset-meta.js'
 import { todayISO, isoOf, weekKey, weekStartOf, fmtNum } from './format.js'
 import { fmtSpeed } from './speed.js'
 import { hasIncline, inclineFrom } from './incline.js'
-import { isCardio, isBodyweightEq, isAssisted, betterWeight } from './exercises.js'
+import { isCardio, isBodyweightEq, isAssisted, betterWeight, canonicalExId } from './exercises.js'
 import { barWeightFor } from './bar.js'
 import { phaseForSet, modeForSet, modeForEntry, isWarmupRow, isFailureSet, isDropSet, isRestPauseSet, normalizeMode, completedVolumeOf, hasCompletedWork, nextDropWeight, splitBurstReps, makeSideSet, isSideSet, syncSideAggregate, WEIGHT_ORIGIN_MANUAL, dropsOf, clustersOf } from './workout-model.js'
 import { backoffAt, backoffStepOf, backoffWeights } from './backoff.js'
@@ -206,7 +206,9 @@ export function setLabel(id, s, cfg, speedUnit) {
 }
 // Default config for a freshly added exercise.
 export function defaultConfig(id, mode) {
-  const m = mode || modeOf({ id })
+  // New forearm holds start in seconds. Keep modeOf's legacy fallback unchanged so
+  // an old rep-based workout is not reinterpreted as a timed hold.
+  const m = mode || (['0463', '0715'].includes(canonicalExId(id)) ? 'time' : modeOf({ id }))
   if (m === 'cardio') return { sets: 1, min: 20, speed: 8 }
   // Written only when it is true, so a barbell config is byte-for-byte what it was before
   // the flag existed and a plan file gains nothing it does not need.
