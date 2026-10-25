@@ -1,3 +1,5 @@
+import { hasCompletedWork } from './workout-model.js'
+
 // Favourite exercises (issue #6): a personal shortlist that floats to the top of the picker,
 // the Library and the muscle explorer so building a routine takes fewer scrolls.
 //
@@ -47,4 +49,26 @@ export function usageOf(S) {
   for (const r of S?.routines || []) for (const e of r.ex || []) u[e.id] = (u[e.id] || 0) + 1
   for (const w of S?.workouts || []) for (const e of w.entries || []) u[e.id] = (u[e.id] || 0) + 1
   return u
+}
+
+
+/** Actual completed use is distinct from exercises only assigned to a routine. */
+export function exerciseUse(S) {
+  const logged = new Set(), planned = new Set()
+  const array = value => Array.isArray(value) ? value : []
+  for (const w of array(S?.workouts)) for (const e of array(w?.entries)) {
+    if (e?.id && array(e.sets).some(hasCompletedWork)) logged.add(e.id)
+  }
+  for (const r of array(S?.routines)) for (const e of array(r?.ex)) {
+    if (e?.id) planned.add(e.id)
+  }
+  return { logged, planned }
+}
+
+/** Used first, routine-only next, then the rest; stars rank within each group.
+ * Stable sorting preserves catalogue/search relevance among equally familiar exercises. */
+export function sortUsedFirst(list, S, usage = exerciseUse(S)) {
+  const favourites = new Set(favIds(S))
+  const rank = e => (usage.logged.has(e.id) ? 0 : usage.planned.has(e.id) ? 2 : 4) + (favourites.has(e.id) ? 0 : 1)
+  return [...list].sort((a, b) => rank(a) - rank(b))
 }

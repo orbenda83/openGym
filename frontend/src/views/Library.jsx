@@ -14,7 +14,7 @@ import ExerciseViewToggle from '../components/ExerciseViewToggle.jsx'
 import { Button } from '../components/ui.jsx'
 import { tappable, useRevealActiveChip } from '../lib/use-sheet-keyboard.js'
 import { useAutoMore } from '../lib/use-auto-more.js'
-import { isFav, sortFavouritesFirst, sortYoursFirst, usageOf } from '../lib/favourites.js'
+import { isFav, sortUsedFirst, exerciseUse } from '../lib/favourites.js'
 
 export default function Library() {
   const nav = useNavigate()
@@ -39,11 +39,11 @@ export default function Library() {
   const eqOpts = equipmentOf(eqFiltered)
   // Drop the equipment filter if the search narrowed it away, so you never hit a dead end.
   const eqOn = eqOpts.includes(eq) ? eq : ''
-  // Favourites float to the top of whatever the filters left (issue #6), the rest keeps its order;
-  // while searching, the exercises you have logged or planned follow right after them.
+  // Familiar exercises lead even before typing: completed workouts, then routine-only
+  // exercises, then the rest. Filtering still decides which exercises can be shown.
   const narrowedList = eqOn ? eqFiltered.filter(e => e.eq === eqOn) : eqFiltered
-  const usage = useMemo(() => (q.trim() ? usageOf(S) : null), [q, S.routines, S.workouts])
-  const f = usage ? sortYoursFirst(narrowedList, S, usage) : sortFavouritesFirst(narrowedList, S)
+  const usage = useMemo(() => exerciseUse(S), [S.routines, S.workouts])
+  const f = sortUsedFirst(narrowedList, S, usage)
   useRevealActiveChip(bpStrip, bp)
   useRevealActiveChip(eqStrip, eqOn)
   useRevealActiveChip(catStrip, catOn)

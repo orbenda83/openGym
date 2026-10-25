@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { favIds, isFav, toggleFav, sortFavouritesFirst, sortYoursFirst, usageOf } from './favourites.js'
+import { favIds, isFav, toggleFav, sortFavouritesFirst, sortYoursFirst, sortUsedFirst, usageOf } from './favourites.js'
 
 const ex = id => ({ id, n: id })
 
@@ -43,4 +43,39 @@ describe('sortYoursFirst', () => {
   it('counts routines and logged workouts as use', () => {
     expect(usageOf({ routines: [{ ex: [{ id: 'a' }] }], workouts: [{ entries: [{ id: 'a' }, { id: 'b' }] }] })).toEqual({ a: 2, b: 1 })
   })
+})
+
+
+describe('sortUsedFirst', () => {
+  const list = ['unused', 'planned', 'logged', 'favourite', 'side'].map(ex)
+  const S = {
+    routines: [{ ex: [{ id: 'planned' }] }], favEx: ['favourite'],
+    workouts: [{ entries: [
+      { id: 'logged', sets: [{ done: true }] },
+      { id: 'unused', sets: [{ done: false }] },
+      { id: 'side', sets: [{ sides: { L: { done: false }, R: { done: true } } }] },
+    ] }],
+  }
+  it('puts completed exercise use before routine-only, unused favourites and catalogue', () => {
+    expect(sortUsedFirst(list, S).map(e => e.id)).toEqual(['logged', 'side', 'planned', 'favourite', 'unused'])
+    expect(list.map(e => e.id)).toEqual(['unused', 'planned', 'logged', 'favourite', 'side'])
+  })
+  it('ranks favourites within the same usage group without changing search order otherwise', () => {
+    expect(sortUsedFirst(list, { ...S, favEx: ['side', 'favourite'] }).map(e => e.id)).toEqual(['side', 'logged', 'planned', 'favourite', 'unused'])
+  })
+  it('does not pull excluded exercises back into filtered results', () => {
+    expect(sortUsedFirst([ex('unused'), ex('planned')], S).map(e => e.id)).toEqual(['planned', 'unused'])
+    expect(sortUsedFirst(list, {}).map(e => e.id)).toEqual(list.map(e => e.id))
+  })
+})
+
+
+it('ignores malformed imported usage containers instead of crashing the ordering', () => {
+  const list = ['unused', 'planned', 'logged'].map(ex)
+  const S = {
+    workouts: [null, { entries: {} }, { entries: [null, { id: 'unused', sets: {} }, { id: 'logged', sets: [null, { done: true }] }] }],
+    routines: [null, { ex: {} }, { ex: [null, { id: 'planned' }] }],
+  }
+  expect(sortUsedFirst(list, S).map(e => e.id)).toEqual(['logged', 'planned', 'unused'])
+  expect(sortUsedFirst(list, { workouts: {}, routines: {} })).toEqual(list)
 })
