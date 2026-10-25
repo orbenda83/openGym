@@ -28,6 +28,8 @@ concurrency:
 
 jobs:
   simulator:
+    # This Android-focused fork does not run Apple builds.
+    if: github.repository == 'DuarteSantos8/openGym'
     runs-on: macos-26
     timeout-minutes: 60
     steps:
@@ -242,6 +244,7 @@ jobs:
   # through the -OpenGymUITestPending probe in MainViewController.swift).
   # The exercise media are left out of this build; the screenshots show placeholders.
   ui-tests:
+    if: github.repository == 'DuarteSantos8/openGym'
     runs-on: macos-26
     timeout-minutes: 60
     steps:
@@ -299,7 +302,7 @@ jobs:
   device-archive:
     runs-on: macos-26
     timeout-minutes: 60
-    if: github.event_name != 'pull_request'
+    if: github.repository == 'DuarteSantos8/openGym' && github.event_name != 'pull_request'
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7

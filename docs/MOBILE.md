@@ -8,6 +8,26 @@ or `openGym-Plus-X.Y.Z.apk` / `openGym-HD-X.Y.Z.apk` for sharper animations at a
 [what's possible](#iphone--whats-actually-possible). Everything from [Prerequisites](#prerequisites)
 on is for building the app yourself.
 
+## This fork: Android builds
+
+This fork targets Samsung Galaxy/Android. GitHub Actions → **Android** builds the Android
+mobile bundle, runs native unit tests, verifies the APK signature and retains an
+`android-test-apk-<commit>` artifact with the APK and SHA-256 checksum for 14 days.
+The Android check runs on every PR and on relevant main changes, and can be started manually.
+Download the artifact from a successful run, extract it, and install `app-sideload-debug.apk`.
+The test app uses the existing `.test` application ID suffix, so it can coexist with the
+regular app. No production signing key or store publishing is configured.
+
+These APKs use disposable debug signing keys and are for testing. A later build may have a
+different key and require uninstalling the previous test copy; export its data before doing
+so. Stable, updateable pilot releases require a dedicated backed-up signing key.
+The CI build includes the repository's media; it does not package personal data or credentials.
+A built APK has not yet been verified on the physical Galaxy phone.
+
+The inherited iOS workflow is disabled on this fork, with upstream-only job guards in its
+source. No iOS build is required for Android work. The upstream build instructions below
+remain for reference.
+
 ## How the phone app works
 
 openGym ships in two flavors from the same codebase:
