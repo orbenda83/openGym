@@ -216,3 +216,25 @@ describe('Library discovery essentials (#45)', () => {
     expect(host.querySelector('.ex-new .ss').textContent).toBe('name + body part + equipment, and a photo or video if you like')
   })
 })
+
+
+describe('Library used exercises first', () => {
+  it('shows logged and routine exercises first without requiring a search', () => {
+    const chest = EXDB.filter(e => e.bp === 'chest')
+    const logged = chest.at(-1), planned = chest.at(-2), favourite = chest.at(-3)
+    mocks.S.workouts = [{ entries: [{ id: logged.id, sets: [{ w: 10, r: 8, done: true }] }] }]
+    mocks.S.routines = [{ ex: [{ id: planned.id }] }]
+    mocks.S.favEx = [favourite.id]
+    const host = render()
+    expect(names(host).slice(0, 3)).toEqual([logged.n, planned.n, favourite.n])
+    const filter = [...host.querySelectorAll('.chips button')].find(b => b.textContent === 'chest')
+    act(() => filter.click())
+    expect(names(host).slice(0, 3)).toEqual([logged.n, planned.n, favourite.n])
+    const input = host.querySelector('.search input')
+    const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set
+    act(() => { setter.call(input, logged.n); input.dispatchEvent(new Event('input', { bubbles: true })) })
+    expect(names(host)[0]).toBe(logged.n)
+    act(() => { setter.call(input, ''); input.dispatchEvent(new Event('input', { bubbles: true })) })
+    expect(names(host).slice(0, 3)).toEqual([logged.n, planned.n, favourite.n])
+  })
+})
