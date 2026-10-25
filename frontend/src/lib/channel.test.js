@@ -31,6 +31,13 @@ describe('install channel', () => {
     expect(await selfUpdates()).toBe(true)
   })
 
+  it('the manually signed Orbenda build never runs the upstream updater', async () => {
+    h.answer = { channel: 'manual' }
+    const { getChannel, selfUpdates } = await import('./channel.js')
+    expect(await getChannel()).toBe('manual')
+    expect(await selfUpdates()).toBe(false)
+  })
+
   it('the Google Play build does not', async () => {
     h.answer = { channel: 'play' }
     const { getChannel, selfUpdates } = await import('./channel.js')
@@ -38,10 +45,18 @@ describe('install channel', () => {
     expect(await selfUpdates()).toBe(false)
   })
 
-  it('an older APK without the plugin is a sideloaded one', async () => {
+  it('fails closed to manual if the native channel plugin is unavailable', async () => {
     h.fail = true
-    const { getChannel } = await import('./channel.js')
-    expect(await getChannel()).toBe('sideload')
+    const { getChannel, selfUpdates } = await import('./channel.js')
+    expect(await getChannel()).toBe('manual')
+    expect(await selfUpdates()).toBe(false)
+  })
+
+  it('fails closed for an unrecognized native channel', async () => {
+    h.answer = { channel: 'unknown' }
+    const { getChannel, selfUpdates } = await import('./channel.js')
+    expect(await getChannel()).toBe('manual')
+    expect(await selfUpdates()).toBe(false)
   })
 
   it('the iPhone app is the App Store\'s', async () => {

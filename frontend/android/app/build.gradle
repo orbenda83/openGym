@@ -1,5 +1,13 @@
 apply plugin: 'com.android.application'
 
+// Local signing can request the next update code without editing the checked-in release.
+def requestedVersionCode = providers.gradleProperty('opengymVersionCode').getOrElse('28')
+if (!(requestedVersionCode ==~ /[1-9][0-9]*/) ||
+        new BigInteger(requestedVersionCode) < 28 ||
+        new BigInteger(requestedVersionCode) > 2100000000) {
+    throw new GradleException('opengymVersionCode must be an integer from 28 through 2100000000')
+}
+
 android {
     namespace = "ch.duartesantos.opengym"
     compileSdk = rootProject.ext.compileSdkVersion
@@ -7,11 +15,11 @@ android {
         buildConfig = true
     }
     defaultConfig {
-        applicationId "ch.duartesantos.opengym"
+        applicationId "live.orbenda.opengym"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 27
-        versionName "1.4.2"
+        versionCode requestedVersionCode.toInteger()
+        versionName "1.4.3"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
@@ -38,18 +46,14 @@ android {
             applicationIdSuffix ".test"
         }
     }
-    // Where the app is installed from. "sideload" is the APK on GitHub and opengym.ch: it checks
-    // GitHub for a newer release and installs it itself (InstallPlugin, REQUEST_INSTALL_PACKAGES).
-    // "play" is the Google Play build: Play installs the updates, so the updater, its permission
-    // and its plugin are left out (Play does not allow an app to update itself). Same
-    // applicationId and the same signing key, so a phone can move from one to the other without
-    // losing its data. The page asks which one it runs in (ChannelPlugin, lib/channel.js).
+    // Orbenda sideload builds are signed locally and updated manually. They must never
+    // consult or install upstream GitHub releases. Play retains store-managed updates.
     flavorDimensions = ["channel"]
     productFlavors {
         sideload {
             dimension = "channel"
             isDefault = true
-            buildConfigField "String", "CHANNEL", '"sideload"'
+            buildConfigField "String", "CHANNEL", '"manual"'
         }
         play {
             dimension = "channel"
