@@ -3,19 +3,8 @@
 name: Tests
 
 on:
+  # These checks protect main: every PR must emit them, including docs-only changes.
   pull_request:
-    paths:
-      - 'frontend/**'
-      - 'api/**'
-      - 'mcp/**'
-      - 'scripts/build-coach-assets.mjs'
-      - 'scripts/build-coach-library.mjs'
-      - 'scripts/build-api-docs.mjs'
-      - 'website/api.html'
-      - 'api/coach/prompts/**'
-      - '.github/workflows/test.yml'
-      - '.github/workflows/docker-publish.yml'
-      - 'scripts/scan-image.sh'
   push:
     branches: [main, coach]
     paths:
