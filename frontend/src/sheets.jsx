@@ -1,3 +1,5 @@
+import { isClassSession } from './lib/class-session.js'
+import { ClassSessionRow, ClassSessionDetail } from './components/ClassSession.jsx'
 import { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
 import { useStore } from './store/useStore.js'
 import { useUI } from './store/useUI.js'
@@ -1266,7 +1268,7 @@ function CustomExForm({ existing, prefill, onDone, close }) {
   }
   return <>
     <h3>{existing ? t('Edit custom exercise') : t('Create your own exercise')}</h3>
-    <div className="muted small" style={{ marginBottom: 12 }}>{t('Name it and pick a body part. It works just like any other exercise.')}</div>
+    <div className="muted small" style={{ marginBottom: 12 }}>{t('Name it and pick a body part and equipment. Optional details can be added later.')}</div>
     <input ref={nameRef} className="input" placeholder={t('Exercise name')} maxLength={80} value={n} onFocus={onNameFocus} onChange={e => setN(e.target.value)} />
     <div className="chips" style={{ margin: '12px 0' }}>
       {BODYPARTS.map(b => <button key={b} className={'chip' + (bp === b ? ' on' : '')} onClick={() => setBp(b)}>{t(b)}</button>)}
@@ -1277,6 +1279,7 @@ function CustomExForm({ existing, prefill, onDone, close }) {
           Hevy import). It stays a chip of its own, picked, so Save does not stop on "Pick equipment". */}
       {storedEq && <button key={storedEq} className={'chip' + (eq === storedEq ? ' on' : '')} onClick={() => setEq(storedEq)}>{t(storedEq)}</button>}
     </div>
+    <details className="custom-ex-details" style={{ margin: '12px 0' }}><summary style={{ minHeight: 44, padding: '12px 0', cursor: 'pointer' }}>{t('More details')}</summary>
     {bp && <>
       {bp !== 'cardio' && <MultiSelectRow title={t('Primary muscle groups')} sheetTitle={t('Primary muscle groups')}
         values={primaries}
@@ -1292,6 +1295,7 @@ function CustomExForm({ existing, prefill, onDone, close }) {
     <textarea className="input" rows={4} maxLength={1000} placeholder={t('Description (optional): setup, cues, anything you want to remember')}
       value={desc} onChange={e => setDesc(e.target.value)} />
     <CustomMediaField media={media} url={url} onChange={onMedia} />
+    </details>
     <div style={{ height: 14 }} />
     <Button variant="primary" onClick={save}>{existing ? t('Save') : t('Create exercise')}</Button>
     {existing && <><div style={{ height: 8 }} /><Button variant="danger" icon="trash" onClick={() => { close(); deleteCustomEx(existing) }}>{t('Delete exercise')}</Button></>}
@@ -2856,7 +2860,7 @@ function mediaGoesToo(rec) {
   const n = workoutMediaOf(rec, Infinity).length
   return n ? ' ' + tn('Its photo or video is deleted with it.', 'Its {0} photos or videos are deleted with it.', n) : ''
 }
-export const workoutDetailSheet = w => ui().openSheet(close => <WorkoutDetail w={w} close={close} />)
+export const workoutDetailSheet = w => ui().openSheet(close => isClassSession(w) ? <ClassSessionDetail w={w} close={close} /> : <WorkoutDetail w={w} close={close} />)
 
 /* ============================ calendar ============================ */
 function Calendar({ start, close }) {
@@ -2915,6 +2919,7 @@ export const calendarSheet = start => ui().openSheet(close => <Calendar start={s
 /* shared small workout row (used in lists) */
 export function WorkoutRow({ w, onClick }) {
   const st = useStore(s => s.S)
+  if (isClassSession(w)) return <ClassSessionRow w={w} onClick={onClick} />
   const glyph = glyphOf((st.routines.find(r => r.id === w.routineId) || {}).emoji)
   const mediaN = workoutMediaCount(w)
   return <div className="item" {...tappable(onClick)}>
@@ -3536,33 +3541,42 @@ function FinishSummary({ w, prs, e1prs = [], close }) {
     <Button variant="primary" onClick={() => closeThenNav(close, '/home')}>{t('Nice!')}</Button>
   </div>
 }
+// Every phone finish entry point reviews the session before saving. Saved-session edits still
+// save directly; the Watch has its own explicit Finish and save command below.
 export function finishWorkout() {
-  if (S().active?.editingWorkoutId) { saveWorkoutEdits(); return }
-  const A = S().active
-  if (!A) return
-  const done = setsDoneActive(A)
-  const total = setUnitsTotal(A.entries)
-  if (!done) { confirmSheet({ title: t('Nothing logged yet'), message: t('You haven’t checked off any sets. Finish the workout anyway?'), confirmText: t('Finish anyway'), onConfirm: doFinishWorkout }); return }
-  if (done < total) { confirmSheet({ title: t('Finish early?'), message: tn('{0} set still unchecked. Finish the workout now?', '{0} sets still unchecked. Finish the workout now?', total - done), confirmText: t('Finish workout'), onConfirm: doFinishWorkout }); return }
-  doFinishWorkout()
+  return finishWorkoutSheet()
 }
-// The workout screen's Finish pill (v1.3.11): one sheet with both ways out, Finish and save or
-// Discard. It says what finishWorkout's confirm would have said about sets still unchecked, so
-// the save needs no second question. `onDiscard` is the screen's own discard, with its confirm.
-// The editor of a saved workout still saves at once.
 export function finishWorkoutSheet({ onDiscard } = {}) {
   if (S().active?.editingWorkoutId) { saveWorkoutEdits(); return }
   const A = S().active
   if (!A) return
+  const activeId = A.id
+  const sameSession = () => S().active?.id === activeId
   const done = setsDoneActive(A)
   const total = setUnitsTotal(A.entries)
+  const end = A.backfill ? backfillEnd(A) : sessionEnd(A)
+  const start = A.start
+  const warning = !done ? t('You haven’t checked off any sets. Finish the workout anyway?')
+    : done < total ? tn('{0} set still unchecked. Finish the workout now?', '{0} sets still unchecked. Finish the workout now?', total - done) : null
+  const discard = onDiscard || (() => confirmSheet({
+    title: t('Discard workout?'), message: t('The sets you logged in this session will be lost.'), confirmText: t('Discard'), danger: true,
+    onConfirm: () => {
+      if (!sameSession()) return
+      update(s => { if (s.active?.id === activeId) s.active = null })
+      ui().stopRest(); ui().stopWork(); nav('/home')
+    },
+  }))
   menuSheet({
     title: !done ? t('Nothing logged yet') : done < total ? t('Finish early?') : t('Finish workout?'),
-    subtitle: !done ? t('You haven’t checked off any sets. Finish the workout anyway?')
-      : done < total ? tn('{0} set still unchecked. Finish the workout now?', '{0} sets still unchecked. Finish the workout now?', total - done) : null,
+    subtitle: <>
+      <div>{t('Duration')}: {fmtDur(Math.max(0, end - start))}</div>
+      <div>{tn('{0} set logged', '{0} sets logged', done)} · {tn('{0} set unchecked', '{0} sets unchecked', total - done)}</div>
+      {warning && <div>{warning}</div>}
+    </>,
     sections: [
-      { items: [{ icon: 'flag', accent: true, label: t('Finish and save'), onClick: doFinishWorkout }] },
-      { items: [onDiscard && { icon: 'trash', danger: true, label: t('Discard workout'), onClick: onDiscard }] },
+      { items: [{ icon: 'flag', accent: true, label: t('Finish and save'), onClick: () => { if (sameSession()) doFinishWorkout() } }] },
+      { items: [{ icon: 'trash', danger: true, label: t('Discard workout'), onClick: () => { if (sameSession()) discard() } }] },
+      { items: [{ label: t('Cancel') }] },
     ],
   })
 }

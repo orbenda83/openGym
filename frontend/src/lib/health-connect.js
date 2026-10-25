@@ -49,6 +49,9 @@ function sessionNotes(w, opts) {
  * its start) is left out rather than given made-up times: Health Connect needs both.
  */
 export function sessionRecord(w, { unit, nameOf, speedUnit }) {
+  // A date-only class has an internal duration anchor, not a known clock time.
+  // Both Android and Apple exporters use this mapper; neither may publish that anchor.
+  if (w?.classSession?.timeUnspecified === true) return null
   const start = Number(w?.start), end = Number(w?.end)
   if (!w?.id || !(start > 0) || !(end > start)) return null
   return {

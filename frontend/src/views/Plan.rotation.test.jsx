@@ -71,8 +71,8 @@ describe('Plan — How you train', () => {
   it('nothing saved: Fixed Week with the weekdays, and no rotation buttons of its own', () => {
     mount()
     expect(selectedMode()).toBe('Fixed Week')
-    expect(headings()).toContain('This week')
-    expect(subtitle()).toBe('Your weekly routine')
+    expect(headings()).toContain('Recurring week')
+    expect(subtitle()).toBe('Your schedule')
     expect(rows()).toEqual([])
     // the old duplicate controls are gone: the mode control is the one way in and out
     expect(byLabel('Build a rotation instead')).toBeUndefined()
@@ -87,10 +87,10 @@ describe('Plan — How you train', () => {
     remount()
     expect(selectedMode()).toBe('Rotation')
     expect(headings()).toContain('The loop')
-    expect(headings()).not.toContain('This week')
+    expect(headings()).not.toContain('Recurring week')
     expect(host.textContent).toContain('No rotation yet.')
     // the subtitle stops saying "weekly" once you train in a loop
-    expect(subtitle()).toBe('Your routines in a loop')
+    expect(subtitle()).toBe('Your schedule')
   })
 
   it('the loop header can wrap so Add never runs off a 320 px screen', async () => {
@@ -306,7 +306,7 @@ describe('Plan — someone else’s queue, and a broken one', () => {
     expect(mocks.S.queue).toBe(null)
     expect(mocks.S.scheduleMode).toBe('week')
     remount()
-    expect(headings()).toContain('This week')
+    expect(headings()).toContain('Recurring week')
     pickMode('Rotation')
     expect(mocks.S.queue.ids).toEqual(['a', 'b'])
   })

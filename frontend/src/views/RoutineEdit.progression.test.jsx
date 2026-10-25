@@ -76,3 +76,33 @@ describe('routine progression wording (#294)', () => {
     expect(useStore.getState().S.routines[0].excludeFromProgression).toBeUndefined()
   })
 })
+
+
+describe('routine essentials before advanced options (#46)', () => {
+  it('keeps exercises before a collapsed Advanced section and preserves stored settings across disclosure toggles', () => {
+    renderRoutine({ prog: 'off', excludeFromProgression: true, ex: [{ id: '0025', sets: 3, reps: 8 }] })
+    const details = container.querySelector('details')
+    expect(details).not.toBeNull()
+    expect(details.querySelector('summary').textContent).toBe('Advanced')
+    expect(details.open).toBe(false)
+    expect(container.querySelector('[data-routine-row]').compareDocumentPosition(details) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(details.contains(rowTitled('Deload routine'))).toBe(true)
+    act(() => details.querySelector('summary').click())
+    expect(details.open).toBe(true)
+    act(() => details.querySelector('summary').click())
+    expect(details.open).toBe(false)
+    expect(useStore.getState().S.routines[0]).toMatchObject({ prog: 'off', excludeFromProgression: true })
+  })
+
+  it('provides 44px move and link controls that still reorder exercises', () => {
+    renderRoutine({ ex: [{ id: '0025', sets: 3, reps: 8 }, { id: '0001', sets: 3, reps: 8 }] })
+    const buttons = [...container.querySelectorAll('button')].filter(button => ['Move up', 'Move down'].includes(button.getAttribute('aria-label')) || button.title === 'Superset with exercise above')
+    expect(buttons).toHaveLength(5)
+    for (const button of buttons) {
+      expect(parseFloat(button.style.width)).toBeGreaterThanOrEqual(44)
+      expect(parseFloat(button.style.height)).toBeGreaterThanOrEqual(44)
+    }
+    act(() => buttons.find(button => button.getAttribute('aria-label') === 'Move down' && !button.disabled).click())
+    expect(useStore.getState().S.routines[0].ex.map(ex => ex.id)).toEqual(['0001', '0025'])
+  })
+})

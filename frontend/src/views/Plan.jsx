@@ -1,3 +1,4 @@
+import { logClassSessionSheet } from '../components/ClassSession.jsx'
 import { useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useStore } from '../store/useStore.js'
@@ -5,10 +6,11 @@ import { useUI } from '../store/useUI.js'
 import { DAYN, DAYS, weekOrder, weekStartOf, uid, exCount, routineCount, todayISO, fmtDate } from '../lib/format.js'
 import { t } from '../lib/i18n.js'
 import {
-  dayAssignSheet, starterPlanSheet, confirmSheet, menuSheet,
+  dayAssignSheet, dayOverrideSheet, startFlow, workoutDetailSheet, starterPlanSheet, confirmSheet, menuSheet,
   planHasRoutines, exportPlanFile, printWholePlan, importPlanFile,
 } from '../sheets.jsx'
 import Icon from '../components/Icon.jsx'
+import PlanCalendar from '../components/PlanCalendar.jsx'
 import { Button, Row, Section, Segmented } from '../components/ui.jsx'
 import SwipeRow from '../components/SwipeRow.jsx'
 import { copyRoutine, deleteRoutine, restoreRoutine, routineSnapshot } from '../lib/routines.js'
@@ -162,7 +164,7 @@ export default function Plan() {
 
   return <div className="narrow plan">
     <div className="hdr">
-      <div><h1>{t('Plan')}</h1><div className="sub">{mode === 'rotation' ? t('Your routines in a loop') : t('Your weekly routine')}</div></div>
+      <div><h1>{t('Plan')}</h1><div className="sub">{t('Your schedule')}</div></div>
       <div className="hdr-actions">
         {showCoach && <Button size="sm" variant="tinted" icon="sparkles" onClick={() => nav('/coach')}>{t('Coach')}</Button>}
         <button className="iconbtn" onClick={openMenu} aria-label={t('Plan options')} title={t('Plan options')}><Icon name="share" /></button>
@@ -276,6 +278,9 @@ function Schedule({ S, update, nav, mode }) {
   const editing = editLoop && !external
 
   return <>
+    <PlanCalendar S={S} onEdit={iso => dayOverrideSheet(iso)} onHistory={w => workoutDetailSheet(w)} onLogClass={iso => logClassSessionSheet(iso)}
+      onStart={(id, plannedDate) => { if (S.active) nav('/workout'); else startFlow([id], { plannedDate }) }} />
+    <details className="plan-advanced"><summary>{t('Advanced scheduling')}</summary>
     <Section className="plan-mode" footer={mode === 'rotation'
       ? t('Routines in a loop. Whatever is next stays next until you train it, whatever the day.')
       : t('The same routines on the same weekdays, every week.')}>
@@ -303,7 +308,7 @@ function Schedule({ S, update, nav, mode }) {
     </div>}
 
     {mode === 'week' ? <>
-      <h4 className="sec">{t('This week')}</h4>
+      <h4 className="sec">{t('Recurring week')}</h4>
       <div className="list plan-week">{weekOrder(ws).map(d => dayRow(d))}</div>
       <p className="sect-f">{t('Want two routines on one day? Tap the day and pick both.')}</p>
     </> : <div className="rotation">
@@ -372,6 +377,7 @@ function Schedule({ S, update, nav, mode }) {
       <Row icon="chart" iconTint="var(--indigo)" title={t('Weekly muscle volume')} subtitle={t('Now in Stats, next to Muscle balance')}
         accessory="chevron" onClick={() => nav('/stats?focus=weekly-volume')} />
     </Section>}
+    </details>
   </>
 }
 

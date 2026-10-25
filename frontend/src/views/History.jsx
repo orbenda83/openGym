@@ -5,6 +5,8 @@ import { WorkoutRow, DayNoteRow, workoutDetailSheet, logPastWorkoutSheet } from 
 import { Button } from '../components/ui.jsx'
 import Icon from '../components/Icon.jsx'
 import { dayNoteOf } from '../lib/day-notes.js'
+import { isClassSession } from '../lib/class-session.js'
+import { ClassSessionRow, classSessionDetailSheet, logClassSessionSheet } from '../components/ClassSession.jsx'
 
 // Newest first: every workout, and in between them the days off you left a note on (#261). A
 // note on a day that has a workout too stays in the day sheet; the workout speaks for that day.
@@ -24,8 +26,11 @@ export default function History() {
     <div className="hdr"><button className="iconbtn" data-back="/stats" onClick={() => nav('/stats')} aria-label={t('Stats')}><Icon name="chevronLeft" /></button>
       <div style={{ flex: 1, marginInlineStart: 12 }}><h1>{t('History')}</h1><div className="sub">{tn('{0} workout', '{0} workouts', S.workouts.length)}</div></div></div>
     <Button icon="plus" onClick={logPastWorkoutSheet} style={{ marginBottom: 12 }}>{t('Log a past workout')}</Button>
+    <Button icon="calendar" onClick={logClassSessionSheet} style={{ marginBottom: 12 }}>{t('Log class')}</Button>
     {rows.length ? <div className="list">{rows.map(r => r.w
-      ? <WorkoutRow key={r.w.id} w={r.w} onClick={() => workoutDetailSheet(r.w)} />
+      ? (isClassSession(r.w)
+        ? <ClassSessionRow key={r.w.id} w={r.w} onClick={() => classSessionDetailSheet(r.w)} />
+        : <WorkoutRow key={r.w.id} w={r.w} onClick={() => workoutDetailSheet(r.w)} />)
       : <DayNoteRow key={'note-' + r.d} iso={r.d} note={r.note} />)}</div>
       : <div className="empty"><div className="ico"><Icon name="history" /></div>{t('No workouts yet. Your first one will land here.')}</div>}
   </>

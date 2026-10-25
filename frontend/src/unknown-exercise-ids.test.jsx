@@ -14,7 +14,7 @@ import { useUI } from './store/useUI.js'
 import { EXIDX, exOr } from './lib/exercises.js'
 import { mergeStates } from './lib/sync-merge.js'
 import { todayISO } from './lib/format.js'
-import { beginWorkout, exerciseDetailSheet, exerciseHistorySheet, workoutDetailSheet, finishWorkout } from './sheets.jsx'
+import { beginWorkout, exerciseDetailSheet, exerciseHistorySheet, workoutDetailSheet, finishWorkoutNow } from './sheets.jsx'
 import Home from './views/Home.jsx'
 import Plan from './views/Plan.jsx'
 import RoutineEdit from './views/RoutineEdit.jsx'
@@ -164,7 +164,7 @@ describe('exercise ids this build does not know', () => {
     expect(A.entries.map(e => e.id)).toEqual([UNK, SQUAT])
     render(<Workout />)
     act(() => useStore.getState().update(s => { s.active.entries.forEach(e => e.sets.forEach(set => { set.done = true })) }))
-    act(() => finishWorkout())
+    act(() => finishWorkoutNow())
     const S = useStore.getState().S
     expect(S.active).toBeNull()
     expect(S.workouts.find(w => w.id === A.id).entries.map(e => e.id)).toEqual([UNK, SQUAT])

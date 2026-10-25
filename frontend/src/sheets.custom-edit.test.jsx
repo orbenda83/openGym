@@ -134,3 +134,18 @@ describe('the store heals it', () => {
     expect(S().customEx[0]).toEqual(healed[0])
   })
 })
+
+
+describe('custom exercise essentials', () => {
+  it('keeps required fields outside collapsed optional details', () => {
+    customExSheet(null)
+    const form = renderTop()
+    const details = form.querySelector('details.custom-ex-details')
+    expect(details).not.toBeNull()
+    expect(details.open).toBe(false)
+    expect(details.querySelector('textarea')).not.toBeNull()
+    expect(details.contains(form.querySelector('input.input'))).toBe(false)
+    expect(form.querySelector('.chips').closest('details')).toBeNull()
+    expect(form.textContent).toContain('equipment')
+  })
+})

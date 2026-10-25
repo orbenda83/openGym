@@ -22,7 +22,7 @@ function tapInTopSheet(text) {
   const root = createRoot(host)
   mounted.push(root)
   act(() => root.render(sheet.render(() => useUI.getState().closeSheet(sheet.id))))
-  const target = [...host.querySelectorAll('button')].find(b => b.textContent.trim() === text)
+  const target = [...host.querySelectorAll('button, [role=button]')].find(b => b.textContent.trim() === text)
   expect(target, text).toBeTruthy()
   act(() => { target.click() })
 }
@@ -40,6 +40,7 @@ function install(sets) {
 const holdInto = set => vi.fn(elapsed => useStore.getState().update(s => { s.active.entries[0].sets[set].sec = elapsed }))
 
 beforeEach(() => {
+  globalThis.IS_REACT_ACT_ENVIRONMENT = true
   vi.useFakeTimers()
   localStorage.clear()
   useUI.getState().stopRest()
@@ -60,6 +61,8 @@ describe('finishing while a timed hold runs', () => {
     useUI.getState().startWork(45, 'Plank', held)
 
     act(() => finishWorkout())
+    expect(S().active).not.toBeNull()
+    tapInTopSheet('Finish and save')
 
     expect(S().active).toBeNull()
     expect(S().workouts).toHaveLength(1)
@@ -74,7 +77,7 @@ describe('finishing while a timed hold runs', () => {
     useUI.getState().startWork(45, 'Plank', held)
 
     act(() => finishWorkout())
-    tapInTopSheet('Finish workout')
+    tapInTopSheet('Finish and save')
 
     expect(S().active).toBeNull()
     expect(useUI.getState().work).toBeNull()
@@ -102,7 +105,10 @@ describe('the Finish sheet', () => {
     act(() => finishWorkoutSheet({ onDiscard: vi.fn() }))
     const host = sheetText()
     expect(host.querySelector('h3').textContent).toBe('Finish workout?')
-    expect([...host.querySelectorAll('.menu-item .tt')].map(e => e.textContent)).toEqual(['Finish and save', 'Discard workout'])
+    expect(host.textContent).toContain('Duration: 20 min')
+    expect(host.textContent).toContain('1 set logged')
+    expect(host.textContent).toContain('0 sets unchecked')
+    expect([...host.querySelectorAll('.menu-item .tt')].map(e => e.textContent)).toEqual(['Finish and save', 'Discard workout', 'Cancel'])
     expect(host.querySelector('.menu-item.danger').textContent).toContain('Discard workout')
     tapItem(host, 'Finish and save')
     expect(S().active).toBeNull()
@@ -119,6 +125,76 @@ describe('the Finish sheet', () => {
     tapItem(host, 'Discard workout')
     expect(onDiscard).toHaveBeenCalledOnce()
     expect(S().active).not.toBeNull()
+  })
+
+  it('closing review leaves the active session unchanged', () => {
+    install([{ w: 40, r: 5, done: true }])
+    const before = clone(S().active)
+    act(() => finishWorkout())
+    act(() => useUI.getState().closeSheet(useUI.getState().sheets.at(-1).id))
+    expect(S().active).toEqual(before)
+    expect(S().workouts).toHaveLength(0)
+  })
+
+  it('a delayed save cannot finish a replacement session', () => {
+    install([{ w: 40, r: 5, done: true }])
+    act(() => finishWorkoutSheet())
+    const host = sheetText()
+    useStore.getState().update(s => { s.active.id = 'replacement' })
+    tapItem(host, 'Finish and save')
+    expect(S().active.id).toBe('replacement')
+    expect(S().workouts).toHaveLength(0)
+  })
+
+  it('saves the same session after a normal store object replacement', () => {
+    install([{ w: 40, r: 5, done: true }])
+    act(() => finishWorkoutSheet())
+    const host = sheetText()
+    useStore.getState().update(s => { s.active.name = 'Renamed' })
+    tapItem(host, 'Finish and save')
+    expect(S().active).toBeNull()
+    expect(S().workouts[0].name).toBe('Renamed')
+  })
+
+  it('does not dispatch discard for a replacement session', () => {
+    install([{ w: 40, r: 5, done: true }])
+    const onDiscard = vi.fn()
+    act(() => finishWorkoutSheet({ onDiscard }))
+    const host = sheetText()
+    useStore.getState().update(s => { s.active.id = 'replacement' })
+    tapItem(host, 'Discard workout')
+    expect(onDiscard).not.toHaveBeenCalled()
+    expect(S().active.id).toBe('replacement')
+  })
+
+  it('shows the declared duration for a backfilled session', () => {
+    install([{ w: 40, r: 5, done: true }])
+    useStore.getState().update(s => { s.active.backfill = { durationMin: 45 } })
+    act(() => finishWorkoutSheet())
+    expect(sheetText().textContent).toContain('Duration: 45 min')
+  })
+
+  it('reviews the effective duration of a forgotten session without changing its saved end', () => {
+    install([{ w: 40, r: 5, done: true, at: Date.now() - 5 * 60000 }])
+    const lastSetAt = S().active.entries[0].sets[0].at
+    vi.advanceTimersByTime(24 * 60 * 60000)
+    act(() => finishWorkoutSheet())
+    const host = sheetText()
+    expect(host.textContent).toContain('Duration: 15 min')
+    tapItem(host, 'Finish and save')
+    expect(S().workouts[0].end).toBe(lastSetAt)
+  })
+
+  it('default discard still confirms and cannot discard a replaced session', () => {
+    install([{ w: 40, r: 5, done: true }])
+    act(() => finishWorkout())
+    tapItem(sheetText(), 'Discard workout')
+    expect(S().active).not.toBeNull()
+    const host = sheetText()
+    expect(host.textContent).toContain('The sets you logged in this session will be lost.')
+    useStore.getState().update(s => { s.active.id = 'replacement' })
+    act(() => [...host.querySelectorAll('button')].find(b => b.textContent === 'Discard').click())
+    expect(S().active.id).toBe('replacement')
   })
 
   it('nothing checked: says so', () => {
