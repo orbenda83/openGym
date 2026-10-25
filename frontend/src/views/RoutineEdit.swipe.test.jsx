@@ -54,7 +54,15 @@ function swipe(target, x0, x1) {
 }
 const undo = () => act(() => useUI.getState().runToastAction())
 
+let animationSpy
 beforeEach(() => {
+  // Happy DOM 21 now implements Web Animations. Complete its presentation step using the
+  // suite's fake clock so these interaction tests do not depend on a rendering timeline.
+  animationSpy = vi.spyOn(HTMLElement.prototype, 'animate').mockImplementation((_frames, options) => {
+    const animation = { onfinish: null, cancel: () => clearTimeout(timer) }
+    const timer = setTimeout(() => animation.onfinish?.(), options.duration)
+    return animation
+  })
   vi.useFakeTimers()
   Object.values(sheets).forEach(mock => mock.mockReset())
   document.documentElement.dir = 'ltr'
@@ -65,6 +73,7 @@ afterEach(() => {
   closeOpenRow(true)
   act(() => root.unmount()); host.remove()
   widthSpy.mockRestore()
+  animationSpy.mockRestore()
   vi.clearAllTimers(); vi.useRealTimers()
 })
 

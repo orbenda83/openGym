@@ -143,3 +143,11 @@ their own 92 tests in `frontend/src/lib/*.test.js`.
 ## License
 
 AGPL-3.0-or-later, same as openGym.
+
+## Private file permissions
+
+The API creates profile JSON with mode `0600` and restricts legacy copies at startup. Run this
+trusted local reader as the account that owns those files, or provide a deliberately authorized
+read-only mount with suitable ownership. A root-owned API bind mount may require running the
+reader inside a controlled container as that file owner. Do not make state files world-readable
+to work around an access error: that would also expose them to optional provider runtimes.

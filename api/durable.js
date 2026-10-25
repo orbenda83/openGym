@@ -25,14 +25,15 @@ export function syncFile(file) {
 }
 
 /** `content` at `file`, durably: temporary file, fsync, rename, fsync of the directory. */
-export function atomicWrite(file, content, mode) {
+export function atomicWrite(file, content, mode = 0o600) {
   const tmp = file + '.tmp';
   const fd = fs.openSync(tmp, 'w', mode);
   try {
+    // open's mode only affects a new file. Restrict a stale temp before it receives secrets.
+    fs.fchmodSync(fd, mode);
     fs.writeFileSync(fd, content);
     fs.fsyncSync(fd);
   } finally { fs.closeSync(fd); }
-  if (mode != null) { try { fs.chmodSync(tmp, mode); } catch { /* a host filesystem that refuses chmod */ } }
   fs.renameSync(tmp, file);
   syncDir(path.dirname(file));
 }

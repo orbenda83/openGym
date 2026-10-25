@@ -97,19 +97,17 @@ const MAX_BODY = 5 * 1024 * 1024;
 const SECURE = /^https:/i.test(ORIGIN) ? ' Secure;' : '';
 
 fs.mkdirSync(DATA, { recursive: true });
-/* The secrets are locked down file by file rather than by sealing the whole directory.
- *
- * A blanket `chmod 0700` on DATA looks stronger and is worse: ./data is a host bind mount and
- * this container runs as root, so it lands on the host as root-owned 0700 and anything else
- * the owner runs against their own data directory — a backup script, the MCP server in #19,
- * their own `jq` — gets EACCES on files that are theirs. Locking the four files that actually
- * hold secrets keeps the Coach runtime out of them without taking the directory hostage.
- *
- * Best-effort throughout: a bind-mounted host filesystem may refuse chmod, and that is not a
- * reason to refuse to boot. The privilege drop in adapters/spawn.js is the control that does
- * fail closed. */
-const lock = f => { try { fs.chmodSync(path.join(DATA, f), 0o600); } catch { /* not present yet, or host says no */ } };
-['secret', 'db.json', 'coach.json'].forEach(lock);
+/* Protect files rather than changing the host bind mount's ownership or directory mode.
+ * Include old profiles, backups and interrupted writes: they may predate private defaults.
+ * Refuse startup when the filesystem cannot enforce this boundary instead of serving with
+ * readable training history. Missing files are created privately by their normal writers. */
+const privateFile = /^(?:secret|db\.json(?:\.bak|\.unreadable-\d+)?|coach\.json|coach-auth-[A-Za-z0-9_-]+\.json|state-[A-Za-z0-9_-]+\.json|audit\.log|vapid\.json)(?:\.tmp)?$/;
+for (const name of fs.readdirSync(DATA)) {
+  if (!privateFile.test(name)) continue;
+  const file = path.join(DATA, name);
+  if (!fs.lstatSync(file).isFile()) throw new Error(`Refusing to start: private data file ${name} is not a regular file`);
+  fs.chmodSync(file, 0o600);
+}
 
 /* ---------- secret + db ---------- */
 const secretFile = path.join(DATA, 'secret');
@@ -1011,7 +1009,7 @@ function audit(req, ev, f = {}) {
   if (f.act) rec.act = String(f.act).slice(0, 40);
   const ip = clientIp(req);
   if (ip) rec.ip = ip;
-  try { fs.appendFileSync(auditFile, JSON.stringify(rec) + '\n'); }
+  try { fs.appendFileSync(auditFile, JSON.stringify(rec) + '\n', { mode: 0o600 }); }
   catch (e) { return console.error('audit write failed', e.message); }
   // Amortized: a 5000-event cap rewrites the file once per ~1250 events.
   if (AUDIT_MAX && ++auditCount > AUDIT_MAX * 1.25) compactAudit();

@@ -31,3 +31,18 @@ test('server.js and media.js write through it', () => {
   const media = fs.readFileSync(new URL('../media.js', import.meta.url), 'utf8');
   assert.match(media, /syncFile\(tmp\);[\s\S]*fs\.renameSync\(tmp, path\.join\(e\.dir/);
 });
+
+
+test('a permissive stale temporary file is made private before receiving any new bytes', t => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'durable-private-'));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const file = path.join(dir, 'state-u.json');
+  fs.writeFileSync(file + '.tmp', 'old', { mode: 0o644 });
+  const write = fs.writeFileSync;
+  t.mock.method(fs, 'writeFileSync', (fd, ...args) => {
+    assert.equal(fs.fstatSync(fd).mode & 0o777, 0o600, 'restrict before writing, not only after it');
+    return write(fd, ...args);
+  });
+  atomicWrite(file, 'private replacement', 0o600);
+  assert.equal(fs.readFileSync(file, 'utf8'), 'private replacement');
+});

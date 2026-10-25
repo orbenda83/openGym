@@ -167,14 +167,14 @@ test('the card does not run a runtime to ask its version when the privilege drop
       fresh({ provider });
       const r = await call('GET /api/admin/coach');
       assert.equal(r.status, 200);
-      assert.deepEqual(r.body.runtime, { ok: false, version: null, error: 'Coach jobs are disabled: no `coach` user exists in this image', needsKey: false }, provider);
+      assert.deepEqual(r.body.runtime, { ok: false, version: null, error: adapterFor(provider).disabledReason || 'Coach jobs are disabled: no `coach` user exists in this image', needsKey: false }, provider);
       assert.equal(r.body.unprivileged.ok, false);
     }
     assert.equal(calls, 0, 'no runtime check was entered, so nothing was spawned');
 
     // With the drop available the same card asks the runtime, as before.
     forcePrivilegeVerdict({ ok: true, dropped: false, why: 'pinned by the test suite' });
-    fresh({ provider: 'codex' });
+    fresh({ provider: 'claude' });
     const r = await call('GET /api/admin/coach');
     assert.deepEqual(r.body.runtime, { ok: true, version: 'stubbed', error: null, needsKey: false });
     assert.equal(calls, 1);
