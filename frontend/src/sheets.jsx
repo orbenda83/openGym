@@ -2940,11 +2940,40 @@ export function DayNoteRow({ iso, note }) {
 /* ============================ workout lifecycle ============================ */
 // `routineIds` accepts `string | string[] | null` — `[r.id]` for one routine,
 // `effectiveRoutineIds(...)` for today's planned session, `[]` / null for explicit freestyle.
-export function startFlow(routineIds) {
-  // The weigh-in is a setting (Settings → During a workout, issue #137): off goes straight
-  // into the session with no body weight on it, same as "Start without weighing in".
-  if (S().weighIn === false) { beginWorkout(routineIds, null); return }
-  bwSheet({ required: true, onDone: bw => beginWorkout(routineIds, bw) })
+export function startFlow(routineIds, { plannedDate = null } = {}) {
+  if (S().active) { navToWorkout(); return }
+  const ids = [...new Set([].concat(routineIds || []))]
+  const date = todayISO()
+  const selected = () => ids.map(id => S().routines.find(r => r.id === id)).filter(Boolean)
+  if (selected().length !== ids.length) { navToWorkout(); return }
+  const selection = () => JSON.stringify(selected().map(({ id, name, ex }) => ({ id, name, ex })))
+  const reviewed = selection()
+  const names = selected().map(r => r.name)
+  // Approval belongs to the date shown here, not whatever day it becomes while a
+  // sheet or optional weigh-in stays open. Never overwrite another device's session.
+  const stillReviewed = () => {
+    if (S().active) { navToWorkout(); return false }
+    if (selected().length !== ids.length) { navToWorkout(); return false }
+    if (todayISO() !== date || selection() !== reviewed) { startFlow(ids, { plannedDate }); return false }
+    return true
+  }
+  confirmSheet({
+    title: t('Start workout'),
+    message: <>
+      <div>{names.length ? deriveSessionName(names) : t('Freestyle')}</div>
+      <div>{t('Date')}: {fmtDate(date, true)}</div>
+      {plannedDate && plannedDate !== date && <div role="alert" style={{ color: 'var(--orange)', marginTop: 8 }}>
+        {t('Planned')}: {fmtDate(plannedDate, true)}
+      </div>}
+    </>,
+    confirmText: t('Start workout'),
+    onConfirm: () => {
+      if (!stillReviewed()) return
+      // Weighing is optional, but approving the live workout and its date is not.
+      if (S().weighIn === false) { beginWorkout(ids, null); return }
+      bwSheet({ required: true, onDone: bw => { if (stillReviewed()) beginWorkout(ids, bw) } })
+    },
+  })
 }
 // `opts` from the Apple Watch (lib/watch-sync.js): a session started there keeps the watch's id,
 // so the sets ticked on it find it, and its start time, however late the phone hears of it.

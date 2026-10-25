@@ -538,10 +538,8 @@ export default function Settings({ page = null, find = null, via = null, entryKe
         </Row>
       </Section>
       <Section title={t('Before and during')}>
-        {/* The quick weigh-in that opens on Start (sheets.jsx startFlow, issue #137); off skips
-            straight to the session. Home and Stats still log weight by hand. */}
-        <Row icon="scale" iconTint="var(--green)" title={t('Weigh in before workouts')}
-          subtitle={t('Asks for your body weight when a workout starts. Off starts the session straight away.')}>
+        {/* The optional weigh-in follows Start confirmation. Home and Stats still log weight by hand. */}
+        <Row icon="scale" iconTint="var(--green)" title={t('Weigh in before workouts')}>
           <Switch checked={S.weighIn !== false} onChange={v => update(s => { s.weighIn = v })} />
         </Row>
         {(wakeOK || !MOBILE) && (

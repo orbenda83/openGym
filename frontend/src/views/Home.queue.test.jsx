@@ -279,12 +279,12 @@ describe('Home — a session pinned to a day', () => {
     expect(status()).toBe('Next: US W1 D2 · ' + fmtDate(daysFromToday(1), true))
   })
 
-  it('tapping a pinned chip starts that routine alone, today', () => {
+  it('tapping a pinned chip preserves its date for start confirmation', () => {
     setS({ dayPlan: { [daysFromToday(2)]: 'd1' } })
     mount()
     act(() => { chips()[0].click() })
     expect(startFlow).toHaveBeenCalledTimes(1)
-    expect(startFlow).toHaveBeenCalledWith(['d1'])
+    expect(startFlow).toHaveBeenCalledWith(['d1'], { plannedDate: daysFromToday(2) })
   })
 })
 

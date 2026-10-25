@@ -200,8 +200,8 @@ export const DEF = {
   // entries, Stats, imports and the separate pre-workout weigh-in flow keep working.
   // Defaults on; an older profile without the key reads as on (`!== false`).
   showWeightCard: true,
-  // Whether Start opens the quick weigh-in first (sheets.jsx startFlow, issue #137). Off starts
-  // the session straight away; weight can still be logged from Home/Stats. On here, so an
+  // Whether Start adds a quick weigh-in after date confirmation (sheets.jsx startFlow).
+  // Off skips only weighing; weight can still be logged from Home/Stats. On here, so an
   // older profile without the key reads as on (`!== false`) and keeps the step it had; a profile
   // started from nothing begins with it off (freshState below, v1.3.11): most people weigh in at
   // home in the morning, not at the gym, and the step cost a tap every workout.
