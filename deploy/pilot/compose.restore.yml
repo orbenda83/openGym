@@ -1,0 +1,5 @@
+# Recovery copies must not send restored push subscriptions or reach external providers.
+# In-container inspection uses loopback and still works without an external network.
+services:
+  api:
+    network_mode: none

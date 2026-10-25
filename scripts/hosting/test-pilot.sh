@@ -66,13 +66,18 @@ RESTIC_PASSWORD_FILE='$work/restic-password'
 ENV
 export RESTIC_REPOSITORY="$work/repository" RESTIC_PASSWORD_FILE="$work/restic-password"
 restic init
+original_api=$(compose ps -q api)
 bash scripts/hosting/pilot.sh backup
+[[ "$original_api" = "$(compose ps -q api)" ]]
 snapshot=$(restic snapshots --json | node -e 'let s="";process.stdin.on("data",d=>s+=d);process.stdin.on("end",()=>console.log(JSON.parse(s)[0].id))')
 # Producer failures must not result in a snapshot presented as a successful backup.
 if restic backup --stdin-from-command -- sh -c 'printf partial; exit 1'; then exit 1; fi
 restic snapshots --json | node -e 'let s="";process.stdin.on("data",d=>s+=d);process.stdin.on("end",()=>{if(JSON.parse(s).length!==1)process.exit(1)})'
 bash scripts/hosting/pilot.sh restore-test "$snapshot"
 bash scripts/hosting/pilot.sh restore-inspect "$snapshot"
+saved=$(cat deploy/pilot/private/restore-project)
+restore_api=$(docker compose --env-file "$OPENGYM_ENV_FILE" -f deploy/pilot/compose.yml -f deploy/pilot/compose.restore.yml -p "$saved" ps -q api)
+[[ "$(docker inspect --format '{{.HostConfig.NetworkMode}}' "$restore_api")" = none ]]
 bash scripts/hosting/pilot.sh restore-probe < deploy/pilot/private/bootstrap-owner.json > "$work/probe.json"
 node -e 'const j=require(process.argv[1]);if(!j.authenticated||j.workouts!==1||j.mediaFiles!==1)process.exit(1)' "$work/probe.json"
 bash scripts/hosting/pilot.sh restore-clean

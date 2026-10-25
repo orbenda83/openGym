@@ -17,15 +17,27 @@ for ref in "${OPENGYM_API_IMAGE:-}" "${OPENGYM_WEB_IMAGE:-}"; do
 done
 [[ "${OPENGYM_HOSTNAME:-}" =~ ^[a-z0-9]([a-z0-9.-]*[a-z0-9])?$ ]] || { echo 'Set a hostname without scheme, port or path' >&2; exit 1; }
 compose() { docker compose --env-file "$env_file" -f "$root/deploy/pilot/compose.yml" "$@"; }
+restore_compose() { compose -f "$root/deploy/pilot/compose.restore.yml" "$@"; }
 operation="$private/.operation-lock"
 mkdir "$operation" 2>/dev/null || { echo 'Another pilot operation is active; inspect before removing a stale lock' >&2; exit 1; }
-restart_api=0
+restart_api=''
 restore_project=''
+restart_existing_api() {
+  docker start "$restart_api" >/dev/null || return 1
+  for attempt in $(seq 1 60); do
+    status=$(docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' "$restart_api") || return 1
+    [[ "$status" != healthy ]] || return 0
+    [[ "$status" != unhealthy && "$status" != exited ]] || return 1
+    sleep 1
+  done
+  echo 'The original API did not become healthy after backup' >&2
+  return 1
+}
 cleanup() {
   rc=$?
   trap - EXIT
-  if [[ "$restart_api" = 1 ]]; then compose start --wait api || rc=1; fi
-  if [[ -n "$restore_project" ]]; then compose -p "$restore_project" down -v >/dev/null || rc=1; fi
+  if [[ -n "$restart_api" ]]; then restart_existing_api || rc=1; fi
+  if [[ -n "$restore_project" ]]; then restore_compose -p "$restore_project" down -v >/dev/null || rc=1; fi
   rmdir "$operation"
   exit "$rc"
 }
@@ -66,7 +78,7 @@ case "${1:-}" in
     [[ -n "$(compose ps --status running -q api)" ]] || { echo 'API must be running before a quiesced backup' >&2; exit 1; }
     running_ref=$(docker inspect --format '{{.Config.Image}}' "$(compose ps --status running -q api)")
     [[ "$running_ref" = "$OPENGYM_API_IMAGE" ]] || { echo 'Back up before changing the configured API image' >&2; exit 1; }
-    restart_api=1
+    restart_api=$(compose ps --status running -q api)
     compose stop api
     [[ -z "$(compose ps --status running -q api bootstrap)" ]] || { echo 'A writer is still running' >&2; exit 1; }
     restic backup --tag opengym-pilot --tag "api=$OPENGYM_API_IMAGE" --tag "web=$OPENGYM_WEB_IMAGE" \
@@ -81,10 +93,10 @@ case "${1:-}" in
     snapshot=${2:?Supply an explicit snapshot ID, not latest}
     [[ "$snapshot" =~ ^[0-9a-f]{8,64}$ ]] || { echo 'Use an explicit restic snapshot ID' >&2; exit 1; }
     restore_project="opengym-restore-$(date +%s)-$$"
-    compose -p "$restore_project" run --rm --no-deps data-init
-    restic dump "$snapshot" /opengym-data.tar | compose -p "$restore_project" run --rm --no-deps -T api tar -C /data -xf -
-    compose -p "$restore_project" up -d --wait api
-    compose -p "$restore_project" exec -T api node -e '
+    restore_compose -p "$restore_project" run --rm --no-deps data-init
+    restic dump "$snapshot" /opengym-data.tar | restore_compose -p "$restore_project" run --rm --no-deps -T api tar -C /data -xf -
+    restore_compose -p "$restore_project" up -d --wait api
+    restore_compose -p "$restore_project" exec -T api node -e '
       const fs=require("node:fs"),path=require("node:path");
       const db=JSON.parse(fs.readFileSync("/data/db.json"));
       if(!db.users?.length || !fs.readFileSync("/data/secret").length) process.exit(1);
@@ -102,9 +114,9 @@ case "${1:-}" in
     saved=$(cat "$private/restore-project")
     [[ "$saved" =~ ^opengym-restore-[0-9]+-[0-9]+$ && "$saved" != "${OPENGYM_PROJECT_NAME:-opengym-pilot}" ]] || { echo 'Invalid disposable project record' >&2; exit 1; }
     if [[ "$1" = restore-probe ]]; then
-      compose -p "$saved" exec -T api node /ops/inspect-restored.mjs
+      restore_compose -p "$saved" exec -T api node /ops/inspect-restored.mjs
     else
-      compose -p "$saved" down -v
+      restore_compose -p "$saved" down -v
       rm "$private/restore-project"
     fi
     ;;

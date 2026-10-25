@@ -123,7 +123,7 @@ older data without changes.
 bash scripts/hosting/pilot.sh restore-test SNAPSHOT_ID
 ```
 
-The helper restores into a new, uniquely named Compose project/volume, boots only its API,
+The helper restores into a new, uniquely named Compose project/volume, boots only its API without external networking (so restored subscriptions cannot send reminders),
 checks account/secret presence, and removes that disposable project. It never replaces live
 data. The automated synthetic drill additionally checks a saved workout and exact uploaded
 media bytes. For actual-host account acceptance, keep an isolated restored API temporarily:
