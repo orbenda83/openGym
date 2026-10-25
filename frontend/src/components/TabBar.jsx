@@ -1,3 +1,4 @@
+import { chooseScheduledWorkout } from '../lib/start-choice.js'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { useStore } from '../store/useStore.js'
 import { effectiveRoutineIds, effectiveRoutines } from '../lib/history.js'
@@ -37,7 +38,7 @@ export default function TabBar({ onStart }) {
     if (!S.active) {
       // A weekday can hold several routines; start the combined session if any of them has
       // exercises, otherwise fall through to the picker.
-      if (effectiveRoutines(S, todayISO()).some(r => r.ex.length)) { onStart(effectiveRoutineIds(S, todayISO())); return }
+      if (effectiveRoutines(S, todayISO()).some(r => r.ex.length)) { chooseScheduledWorkout(effectiveRoutineIds(S, todayISO()), onStart); return }
     }
     nav('/workout')
   }

@@ -49,7 +49,8 @@ export default function Library() {
   useRevealActiveChip(catStrip, catOn)
   // A live count at the end of the search field while a search or filter narrows the list
   // (idea and first version: GitLab !31) — how many are left, before scrolling to find out.
-  const narrowed = !!(q.trim() || bp || eqOn || catOn)
+  const activeFilters = [bp, eqOn, catOn].filter(Boolean).length
+  const narrowed = !!(q.trim() || activeFilters)
   // Close but not exact (a typo too many, most of the words, a similar name), under the results
   // once they are all on screen, so a search almost never ends on "No match".
   // Worked out a beat behind the typing (useDeferredValue): the list itself never waits for it.
@@ -63,7 +64,7 @@ export default function Library() {
       <Thumb ex={e} />
       <div className="grow"><div className={`tt ${exerciseNameClass(e)}`}>{isFav(S, e.id) && <Icon name="starFill" className="fav-star" />}{exerciseNameFor(e)}</div><div className="ss capitalize">{t(MUSCLE_NAME[e.tg] || e.tg || e.bp)} · {t(e.eq)}</div></div>
       {best > 0 && <span className="tag acc">{fmtNum(best)}</span>}
-      <Button size="sm" variant="tinted" icon="plus" onClick={ev => { ev.stopPropagation(); addToRoutineSheet(e) }}>{t('Plan')}</Button>
+      <Button size="sm" variant="tinted" icon="plus" onClick={ev => { ev.stopPropagation(); addToRoutineSheet(e) }}>{t('Add to routine')}</Button>
     </div>
   }
 
@@ -79,6 +80,10 @@ export default function Library() {
       {narrowed && <span className="search-count" role="status" aria-label={exCount(f.length)}>{fmtNum(f.length)}</span>}
       {q && <button className="clear" onClick={() => { setQ(''); setShown(40) }} aria-label={t('Clear')}><Icon name="xmark" /></button>}</div>
       <ExerciseViewToggle /></div>
+    <details style={{ marginBottom: 12 }}>
+      <summary style={{ minHeight: 44, padding: '12px 2px', cursor: 'pointer', fontWeight: 600 }}>
+        {t('Filters')}{activeFilters > 0 && ` (${fmtNum(activeFilters)})`}
+      </summary>
     {profile && <div className="small dim row" style={{ margin: '-4px 2px 10px', gap: 6, alignItems: 'center' }}>
       <Icon name="kettlebell" style={{ fontSize: 13 }} />
       {showAll ? t('Showing all equipment') : t('Showing what you have in "{0}"', profile.name)}
@@ -101,10 +106,11 @@ export default function Library() {
       <button className={'chip nocap' + (!eqOn ? ' on' : '')} onClick={() => { setEq(''); setShown(40) }}>{t('Any equipment')}</button>
       {eqOpts.map(x => <button key={x} className={'chip' + (eqOn === x ? ' on' : '')} onClick={() => { setEq(x); setShown(40) }}>{t(x)}</button>)}
     </div>}
+    </details>
     <div className={'list' + (S.exerciseView === 'cards' ? ' ex-grid' : '')}>
       <div className="item ex-new" {...tappable(() => customExSheet(null, ex => exerciseDetailSheet(ex), q.trim()))}>
         <div className="thumb thumb-x"><Icon name="plusCircle" /></div>
-        <div className="grow"><div className="tt">{t('Create your own exercise')}</div><div className="ss">{t('name + body part, and a photo or video if you like')}</div></div><Icon name="plus" className="chev" />
+        <div className="grow"><div className="tt">{t('Create your own exercise')}</div><div className="ss">{t('name + body part + equipment, and a photo or video if you like')}</div></div><Icon name="plus" className="chev" />
       </div>
       {f.slice(0, shown).map(row)}
       {f.length === 0 && !similar.length && <div className="empty"><div className="ico"><Icon name="magnifier" /></div>{t('No match')}</div>}

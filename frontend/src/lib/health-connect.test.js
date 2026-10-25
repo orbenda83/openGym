@@ -153,3 +153,10 @@ describe('writtenIds', () => {
       .toEqual({ sessions: ['a'], weights: ['b'] })
   })
 })
+
+
+it('does not export an unspecified class clock time as a real Health Connect session', () => {
+  const classOnly = workout([], { name: 'Pilates', classSession: { type: 'pilates', attendance: 'attended', durationMin: 50, timeUnspecified: true } })
+  expect(sessionRecord(classOnly, { unit: 'kg', nameOf })).toBeNull()
+  expect(healthRecords({ unit: 'kg', workouts: [classOnly] }, { nameOf }).sessions).toEqual([])
+})

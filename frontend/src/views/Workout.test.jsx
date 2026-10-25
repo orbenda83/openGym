@@ -8,7 +8,7 @@ import { nextPrescription } from '../lib/progression.js'
 import { buildCombinedEntries } from '../lib/session-merge.js'
 import { buildCompletedWorkout } from '../lib/finish-workout.js'
 import { isWarmupRow } from '../lib/workout-model.js'
-import { finishWorkout, finishWorkoutSheet } from '../sheets.jsx'
+import { finishWorkout, finishWorkoutSheet, exerciseDetailSheet } from '../sheets.jsx'
 
 // A menu's actions in order, whether it came as one list or in groups (menuSheet `sections`).
 const menuItemsOf = menu => (menu.sections ? menu.sections.flatMap(g => g.items || []) : menu.items || []).filter(Boolean)
@@ -3432,6 +3432,26 @@ describe('the workout screen chrome (v1.3.11)', () => {
     expect(mocks.S.active).not.toBeNull()
   })
 
+  it.each([false, true])('bottom finish uses the same review as the header (all done: %s)', async done => {
+    await mount([exercise('plain-bench', [done])])
+    finishWorkoutSheet.mockClear(); finishWorkout.mockClear()
+    await click([...container.querySelectorAll('button')].find(b => /^Finish workout/.test(b.textContent)))
+    expect(finishWorkoutSheet).toHaveBeenCalledOnce()
+    expect(finishWorkoutSheet.mock.calls[0][0].onDiscard).toBeTypeOf('function')
+    expect(finishWorkout).not.toHaveBeenCalled()
+  })
+
+  it('a delayed discard confirmation does not remove a replacement session', async () => {
+    await mount([exercise('plain-bench', [false])])
+    await click(container.querySelector('.whdr-finish'))
+    finishWorkoutSheet.mock.calls.at(-1)[0].onDiscard()
+    const confirmation = mocks.confirmSheet.mock.calls.at(-1)[0]
+    mocks.S.active = { ...mocks.S.active, id: 'replacement' }
+    confirmation.onConfirm()
+    expect(mocks.S.active.id).toBe('replacement')
+    expect(mocks.nav).not.toHaveBeenCalled()
+  })
+
   it('says Save in the editor of a saved workout, and keeps its close button', async () => {
     await mount([exercise('plain-bench', [true])], 0, { active: { editingWorkoutId: 'saved' } })
     const pill = container.querySelector('.whdr-finish')
@@ -3459,6 +3479,15 @@ describe('the workout screen chrome (v1.3.11)', () => {
     await click(container.querySelector('button[aria-label="Workout options"]'))
     item('Add exercise').onClick()
     expect(mocks.exercisePicker).toHaveBeenCalledOnce()
+  })
+
+  it('keeps history and exercise instructions reachable in Compact', async () => {
+    await mount([exercise('plain-bench', [false])], 0, { active: { workoutView: 'compact' } })
+    await openMore()
+    item('History').onClick()
+    expect(mocks.exerciseHistorySheet).toHaveBeenCalledWith('plain-bench')
+    item('How to do it').onClick()
+    expect(exerciseDetailSheet).toHaveBeenCalledWith(expect.objectContaining({ id: 'plain-bench' }))
   })
 
   it('groups the exercise menu: today, look it up, settings, order, and Remove on its own', async () => {

@@ -172,7 +172,9 @@ describe('Home — coach week progress row', () => {
   it('own routines on the weekday ride along beside the queue session', () => {
     setS({ week: { [new Date().getDay()]: ['own'] } })
     mount()
-    expect(todayTitle()).toBe('US W1 D1 + Core')
+    expect([...host.querySelectorAll('.today-row .ttl')].map(e => e.textContent)).toEqual(['US W1 D1', 'Core'])
+    act(() => host.querySelectorAll('.today-row')[1].click())
+    expect(startFlow).toHaveBeenCalledWith(['own'])
     expect(chipTexts().length).toBe(3)
   })
 

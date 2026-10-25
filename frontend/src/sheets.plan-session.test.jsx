@@ -5,7 +5,7 @@
 // what the workout screen would render.
 import { act } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { beginWorkout, finishWorkout } from './sheets.jsx'
+import { beginWorkout, finishWorkoutNow } from './sheets.jsx'
 import { DEF, useStore } from './store/useStore.js'
 import { useUI } from './store/useUI.js'
 import { isWarmupRow } from './lib/workout-model.js'
@@ -35,7 +35,7 @@ function trainActive(day, typedReps) {
     if (!isWarmupRow(x) && typedReps != null) x.r = typedReps
     x.done = true
   })))
-  act(() => finishWorkout())
+  act(() => finishWorkoutNow())
   useUI.setState({ sheets: [] })
 }
 

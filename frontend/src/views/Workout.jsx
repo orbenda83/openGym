@@ -1445,10 +1445,18 @@ function ActiveWorkout() {
   })
   // Ending the session without saving it. The ⋯ menu's last item since the header's ✕ became the
   // ⌄ that only leaves the screen (v1.3.11).
-  const discardWorkout = () => confirmSheet({
-    title: t('Discard workout?'), message: t('The sets you logged in this session will be lost.'), confirmText: t('Discard'), danger: true,
-    onConfirm: () => { update(s => { s.active = null }); stopRest(); stopWork(); nav('/home') },
-  })
+  const discardWorkout = () => {
+    const activeId = useStore.getState().S.active?.id
+    if (!activeId) return
+    confirmSheet({
+      title: t('Discard workout?'), message: t('The sets you logged in this session will be lost.'), confirmText: t('Discard'), danger: true,
+      onConfirm: () => {
+        if (useStore.getState().S.active?.id !== activeId) return
+        update(s => { if (s.active?.id === activeId) s.active = null })
+        stopRest(); stopWork(); nav('/home')
+      },
+    })
+  }
   // The header ⋯, in groups: the settings you change at the gym first (their own sheet, the same
   // values as Settings), then what to add, what to change about this workout, and Discard last.
   // Layout here stays this session's own (s.active.workoutView); the settings sheet's Layout is
@@ -2174,7 +2182,7 @@ function ActiveWorkout() {
     {(() => {
       const exDone = A.entries.filter(e => e.sets.length && e.sets.every(s => s.done)).length
       const allDone = A.entries.length > 0 && exDone === A.entries.length
-      return <button className={allDone ? 'btn primary' : 'btn ghost dim'} onClick={finishWorkout}>
+      return <button className={allDone ? 'btn primary' : 'btn ghost dim'} onClick={() => (editing ? finishWorkout() : finishWorkoutSheet({ onDiscard: discardWorkout }))}>
         {editing ? t('Save changes') : allDone ? t('Finish workout') : t('Finish workout early · {0} exercises', exDone + '/' + A.entries.length)}
       </button>
     })()}

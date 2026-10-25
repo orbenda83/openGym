@@ -185,3 +185,34 @@ describe('Library similar exercises', () => {
     expect(new Set(all).size).toBe(all.length)
   })
 })
+
+
+describe('Library discovery essentials (#45)', () => {
+  it('keeps search before collapsed Filters and preserves active filtering when collapsed', () => {
+    const host = render()
+    const details = host.querySelector('details')
+    expect(details).not.toBeNull()
+    expect(details.open).toBe(false)
+    expect(details.querySelector('summary').textContent).toBe('Filters')
+    expect(host.querySelector('.search').compareDocumentPosition(details) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    act(() => details.querySelector('summary').click())
+    expect(details.open).toBe(true)
+    const chest = [...details.querySelectorAll('button')].find(button => button.textContent === 'chest')
+    act(() => chest.click())
+    const filteredNames = names(host)
+    expect(filteredNames.length).toBeGreaterThan(0)
+    expect(filteredNames.every(name => EXDB.find(ex => ex.n === name)?.bp === 'chest')).toBe(true)
+    expect(details.querySelector('summary').textContent).toBe('Filters (1)')
+    act(() => details.querySelector('summary').click())
+    expect(details.open).toBe(false)
+    expect(names(host)).toEqual(filteredNames)
+    expect(chest.classList.contains('on')).toBe(true)
+  })
+
+  it('names the row action Add to routine and explains required equipment when creating', () => {
+    const host = render()
+    const action = host.querySelector('.item:not(.ex-new) button')
+    expect(action.textContent).toBe('Add to routine')
+    expect(host.querySelector('.ex-new .ss').textContent).toBe('name + body part + equipment, and a photo or video if you like')
+  })
+})

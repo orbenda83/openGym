@@ -26,7 +26,7 @@ function mountTopSheet() {
   act(() => root.render(sheet.render(() => useUI.getState().closeSheet(sheet.id))))
   return host
 }
-const button = (host, text) => [...host.querySelectorAll('button')].find(b => b.textContent.trim() === text)
+const button = (host, text) => [...host.querySelectorAll('button, [role=button]')].find(b => b.textContent.trim() === text)
 // Mounted before the click's own act(): a render nested inside it lands only once it is over.
 function tapInTopSheet(text) {
   const target = button(mountTopSheet(), text)
@@ -109,6 +109,7 @@ describe('logging a missed planned day', () => {
     tapInTopSheet('Continue')
     act(() => { useStore.getState().update(s => { s.active.entries = markAllSetsDone(s.active.entries) }) })
     act(() => finishWorkout())
+    tapInTopSheet('Finish and save')
     expect(S().active).toBeNull()
     const [w] = S().workouts
     expect(w).toMatchObject({ d: '2026-09-14', routineIds: ['A', 'B'] })
@@ -176,6 +177,7 @@ describe('badges on a workout logged into the past', () => {
         : e)
     }) })
     act(() => finishWorkout())
+    tapInTopSheet('Finish and save')
     const byDay = Object.fromEntries(S().workouts.map(w => [w.d, w.prs]))
     expect(byDay['2026-09-14']).toContain(BENCH)
     expect(byDay['2026-09-15']).not.toContain(BENCH)   // 52.5 no longer leads what came before it
