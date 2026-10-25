@@ -853,3 +853,7 @@ cannot yet be isolated from the credentials they run under; HTTP providers, incl
 and the tool-free Claude adapter remain available.
 
 These artifact gates apply to this fork’s GitHub Actions. The inherited GitLab pipeline is not configured for this fork and is not a supported publication path; its upstream publication policy is unchanged.
+
+For a hardened single-host pilot behind an existing host-native Caddy, see
+[deploy/pilot/README.md](../deploy/pilot/README.md). It uses a separate Compose project,
+private owner bootstrap, loopback-only publishing and encrypted local backup/restore helpers.

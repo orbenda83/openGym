@@ -30,3 +30,6 @@ frontend/bundle-size.json
 
 # Local planning notes
 docs/superpowers/plans/
+
+# Private pilot config, bootstrap credentials and backup status
+deploy/pilot/private/

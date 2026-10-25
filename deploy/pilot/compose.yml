@@ -1,0 +1,113 @@
+name: ${OPENGYM_PROJECT_NAME:-opengym-pilot}
+
+x-api: &api
+  image: ${OPENGYM_API_IMAGE:?Set a scanned API image digest}
+  user: '1000:1000'
+  read_only: true
+  init: true
+  cap_drop: [ALL]
+  security_opt: [no-new-privileges:true]
+  tmpfs: ['/tmp:rw,noexec,nosuid,size=64m,mode=1777']
+  mem_limit: 512m
+  cpus: 1
+  pids_limit: 128
+  volumes:
+    - data:/data
+    - ../../scripts/hosting:/ops:ro
+  environment: &environment
+    DATA_DIR: /data
+    PORT: '3000'
+    RP_ID: ${OPENGYM_HOSTNAME:?Set the final HTTPS hostname}
+    ORIGIN: https://${OPENGYM_HOSTNAME}
+    RP_NAME: openGym
+    INVITE_ONLY: '1'
+    FIRST_USER_ADMIN: '0'
+    PASSWORD_LOGIN: ${OPENGYM_PASSWORD_LOGIN:-1}
+    ALLOW_GUEST: '0'
+    COACH_DISABLED: '1'
+    TRUST_PROXY: '1'
+    SESSION_DAYS: '30'
+  logging:
+    driver: json-file
+    options: {max-size: 10m, max-file: '3'}
+
+services:
+  data-init:
+    image: ${OPENGYM_API_IMAGE:?Set a scanned API image digest}
+    user: '0:0'
+    network_mode: none
+    read_only: true
+    cap_drop: [ALL]
+    cap_add: [CHOWN]
+    security_opt: [no-new-privileges:true]
+    volumes: [data:/data]
+    command:
+      - sh
+      - -ec
+      - |
+        if [ "$$(stat -c '%u' /data)" = 0 ]; then
+          chmod 0700 /data && chown 1000:1000 /data
+        else
+          test "$$(stat -c '%u:%g:%a' /data)" = '1000:1000:700'
+        fi
+    restart: 'no'
+
+  api:
+    <<: *api
+    command: [sh, -ec, 'test ! -e /data/.bootstrap-lock || { echo "Owner bootstrap is in progress" >&2; exit 1; }; exec node server.js']
+    restart: unless-stopped
+    depends_on:
+      data-init: {condition: service_completed_successfully}
+    healthcheck:
+      test: [CMD, wget, --spider, -q, 'http://127.0.0.1:3000/api/health']
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 5s
+
+  bootstrap:
+    <<: *api
+    profiles: [maintenance]
+    network_mode: none
+    command: [node, /ops/bootstrap-owner.mjs]
+    restart: 'no'
+    environment:
+      <<: *environment
+      PASSWORD_LOGIN: '1'
+      FIRST_USER_ADMIN: '1'
+      INVITE_ONLY: '0'
+
+  web:
+    image: ${OPENGYM_WEB_IMAGE:?Set a matching scanned web image digest}
+    user: '101:101'
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=64m,mode=1777
+      - /etc/nginx/conf.d:rw,noexec,nosuid,size=1m,uid=101,gid=101,mode=0755
+    ports: ['127.0.0.1:${OPENGYM_WEB_PORT:-8082}:8080']
+    environment:
+      NGINX_PORT: '8080'
+      BACKEND: api
+      PORT: '3000'
+      # Only safe with loopback publishing and the Caddy header overwrite in Caddyfile.example.
+      CF_CONNECTING_IP: $$http_cf_connecting_ip
+    depends_on:
+      api: {condition: service_healthy}
+    restart: unless-stopped
+    mem_limit: 256m
+    cpus: 1
+    pids_limit: 128
+    logging:
+      driver: json-file
+      options: {max-size: 10m, max-file: '3'}
+    healthcheck:
+      test: [CMD, wget, --spider, -q, 'http://127.0.0.1:8080/']
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 5s
+
+volumes:
+  data:
