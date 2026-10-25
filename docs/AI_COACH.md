@@ -9,6 +9,19 @@ running on your own server under your own provider account, off until an admin t
 
 ---
 
+## Codex CLI security restriction
+
+The Codex CLI provider is temporarily unavailable. Its model tools run under the same account
+that reads its credential cache; a read-only sandbox does not keep those tools from reading
+credentials or other readable data. Availability checks and job submission refuse it before
+starting a runtime, binding a credential or spending a daily budget. Saved settings and sign-in
+material are retained. Use the OpenAI API provider, another HTTPS provider, or a local compatible
+endpoint such as Ollama instead. Claude's tool-free SDK adapter remains available.
+
+The Codex setup instructions below describe the retained configuration, not an available job
+provider. Do not re-enable it by bypassing the refusal; it needs an enforced tool-free or
+credential-isolated integration first.
+
 ## Two kinds of provider
 
 The Coach can be driven by two kinds of thing, and which kind you pick decides how much of the
@@ -364,7 +377,7 @@ so adding an ordinary `USER` line to the Dockerfile, for unrelated hardening rea
 quietly left the runtime inheriting the server's uid. A control that switches itself off during
 somebody else's refactor is one you find out about late.
 
-The secrets are locked file by file — `secret`, `db.json`, `coach.json` at `0600` — rather than
+Private files are locked individually — including profile state, audit logs, backups and credentials at `0600` — rather than
 by sealing `./data` with a blanket `0700`. The directory is a host bind mount and the container
 runs as root, so sealing it lands on the host as root-owned and unreadable, and anything else
 the owner runs against their own data directory gets `EACCES`.

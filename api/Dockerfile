@@ -79,6 +79,9 @@ RUN apk add --no-cache bubblewrap \
  && npm install -g @openai/codex@0.160.0 \
  && npm cache clean --force
 
+# Both provider runtimes run directly; npm is build tooling, not a runtime requirement.
+RUN rm -rf /usr/local/lib/node_modules/npm /usr/local/bin/npm /usr/local/bin/npx
+
 # Where Codex keeps its refreshable login cache. Deliberately a sibling of /data rather than a
 # path inside it: docs/SELF_HOSTING tells owners to back up with `tar czf … data/`, and a live
 # refresh token has no business riding along in every archive that instruction produces. Owned

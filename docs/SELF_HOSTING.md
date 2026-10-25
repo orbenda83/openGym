@@ -829,3 +829,27 @@ effect on an already-built image — the bundle has already made up its mind.
 They are only useful if you build the frontend yourself (`docker compose up -d --build`, or a
 `npm run build` with the variables exported). If you need to redirect media on a prebuilt
 image, do it in your reverse proxy instead.
+
+## Running this fork's reviewed artifacts
+
+The default image URLs in Compose refer to upstream images. To run changes from this fork,
+build the checked-out commit with `docker compose up -d --build`, or set both
+`OPENGYM_API_IMAGE` and `OPENGYM_WEB_IMAGE` in `.env` to the matching digest references reported
+by this fork's successful **Publish Docker images** workflow, then pull/recreate. Do not mix
+images from different commits. Keep a backup and record the previous pair for rollback.
+
+The publication workflow scans API and web for both amd64 and arm64 before promoting deployment
+tags. Its candidate tags are unapproved build intermediates: use the successful run's digest
+references. PR checks also scan the optional Coach target and retain CycloneDX SBOMs. Fixable
+HIGH/CRITICAL image findings and high/critical npm audit findings block their checks; no broad
+exceptions are configured.
+
+Existing profile, audit, backup and credential files are restricted to mode `0600` at startup.
+The data directory mode remains the operator's choice. The mount must support private regular
+files and chmod; the server refuses startup if it cannot secure an existing protected file.
+Trusted host tools and the optional local MCP reader need the file owner's permissions rather
+than world-readable state files. The Codex CLI Coach is temporarily refused because its tools
+cannot yet be isolated from the credentials they run under; HTTP providers, including Ollama,
+and the tool-free Claude adapter remain available.
+
+These artifact gates apply to this fork’s GitHub Actions. The inherited GitLab pipeline is not configured for this fork and is not a supported publication path; its upstream publication policy is unchanged.

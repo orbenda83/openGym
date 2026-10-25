@@ -675,3 +675,46 @@ test('a job refused by the privilege gate does not bind the instance credential'
     cfg.save({ provider: prev.provider, authMode: prev.authMode, boundUid: prev.boundUid, auth: prev.auth });
   }
 });
+
+
+test('disabled Codex is refused before binding, counting or creating a job, even with a working privilege drop', async () => {
+  const uid = 'u-codex-refused';
+  writeState(DIR, uid, sampleState());
+  const prev = cfg.load();
+  cfg.save({ enabled: true, provider: 'codex', authMode: 'instance', boundUid: {},
+    auth: { codex: { type: 'oauth', data: cfg.encrypt({ token: 'fixture-only' }) } } });
+  try {
+    assert.throws(() => jobs.enqueue(uid, { kind: 'review' }), e => e.code === 'unprivileged' && /disabled.*isolat/i.test(e.message));
+    assert.equal(cfg.boundUidFor(), null);
+    assert.equal(jobs.capState(uid).used, 0);
+    assert.equal(jobs.status(uid).job, null);
+    assert.equal(fs.existsSync(`${DIR}/coach/${uid}.json`), false);
+    const result = await jobs.testRun();
+    assert.equal(result.ok, false);
+    assert.match(result.error, /disabled.*isolat/i);
+  } finally {
+    await settle(uid);
+    cfg.save({ provider: prev.provider, authMode: prev.authMode, boundUid: prev.boundUid, auth: prev.auth });
+  }
+});
+
+
+test('a queued job switched to disabled Codex fails before any runtime invocation', async t => {
+  const provider = await holdingProvider();
+  const { adapterFor } = await import('../coach/adapters/index.js');
+  const invoked = t.mock.method(adapterFor('codex'), 'invoke', async () => { throw new Error('disabled adapter must not be reached by a queued job'); });
+  const uids = ['u-codex-switch-1', 'u-codex-switch-2', 'u-codex-switch-3'];
+  try {
+    provider.use();
+    for (const uid of uids) { writeState(DIR, uid, sampleState()); jobs.enqueue(uid, { kind: 'review' }); }
+    await provider.until(2);
+    assert.equal(jobs.status(uids[2]).job.state, 'queued');
+    cfg.save({ provider: 'codex' });
+    provider.answer(NOCHANGE);
+    await Promise.all(uids.map(uid => settle(uid)));
+    assert.equal(lastOutcome(uids[0]).outcome, 'nochange');
+    assert.equal(lastOutcome(uids[2]).errorClass, 'unprivileged');
+    assert.match(cfg.load().log.find(row => row.uid === uids[2]).detail, /disabled.*isolat/i);
+    assert.equal(invoked.mock.callCount(), 0);
+  } finally { provider.close(); }
+});

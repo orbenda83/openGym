@@ -69,6 +69,7 @@ export function canDropPrivileges() {
  * nothing has no process to drop and is never refused for lacking the drop.
  */
 export function privilegeRefusal(adapter) {
+  if (adapter?.disabledReason) return adapter.disabledReason;
   if (adapter?.spawns === false) return null;
   const priv = canDropPrivileges();
   return priv.ok ? null : `Coach jobs are disabled: ${priv.why}`;
